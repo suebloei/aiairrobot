@@ -1,1 +1,303 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Air Robot - Premium Cyber Dashboard v4.5</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&family=Prompt:wght@300;400;600;700&display=swap');
+        
+        body { font-family: 'Prompt', sans-serif; }
+        .font-cyber { font-family: 'Chakra Petch', sans-serif; }
+        
+        /* 🚨 ระดับสีแจ้งเตือนภัยแบบเรืองแสง (Neon Glow Effects) */
+        .status-good { background: rgba(16, 185, 129, 0.15); border-color: #10B981; color: #34D399; box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); }
+        .status-moderate { background: rgba(245, 158, 11, 0.15); border-color: #F59E0B; color: #FBBF24; box-shadow: 0 0 15px rgba(245, 158, 11, 0.2); }
+        .status-poor { background: rgba(239, 68, 68, 0.15); border-color: #EF4444; color: #F87171; box-shadow: 0 0 15px rgba(239, 68, 68, 0.2); }
+        .status-hazardous { background: rgba(124, 58, 237, 0.15); border-color: #7C3AED; color: #A78BFA; box-shadow: 0 0 15px rgba(124, 58, 237, 0.2); }
+        
+        /* 🎚️ โครงสร้างการ์ดกระจกโปร่งแสง (Glassmorphism Effect) */
+        .glass-card { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(51, 65, 85, 0.5); }
+        .gauge-container { position: relative; width: 100%; height: 130px; }
+        .gauge-value { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-weight: bold; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-cyan-500 selection:text-slate-950">
 
+    <header class="bg-slate-900/90 border-b border-slate-800 shadow-xl py-6 px-6 sticky top-0 z-50 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 font-cyber tracking-wider uppercase">
+                    AI AIR ROBOT - INTELLIGENT SYSTEM
+                </h1>
+                <p class="text-slate-400 text-xs md:text-sm mt-1 font-medium">
+                    สถานีโทรมาตรเคลื่อนที่ตรวจวัดและทำนายมลพิษอากาศระดับขอบ | <span class="text-cyan-400">โรงเรียนสีชมพูศึกษา</span>
+                </p>
+            </div>
+            <div>
+                <span id="connection-status" class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold font-cyber bg-red-500/10 border border-red-500/50 text-red-400 transition-all duration-300">
+                    <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                    🔴 DISCONNECTED BROKER
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 glass-card rounded-2xl p-6 flex flex-col justify-between shadow-2xl relative overflow-hidden group">
+                <div class="absolute -right-16 -top-16 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl group-hover:bg-cyan-500/20 transition-all duration-500"></div>
+                <div>
+                    <span class="text-xs font-bold tracking-widest text-cyan-400 font-cyber uppercase">Edge AI Model Result</span>
+                    <h2 class="text-2xl font-bold text-slate-200 mt-1">ผลการทำนายดัชนีคุณภาพอากาศ</h2>
+                    <div class="flex items-baseline mt-4">
+                        <span id="ai-prediction-text" class="text-4xl font-black text-slate-100 font-cyber tracking-wide drop-shadow-md">รอสัญญาณข้อมูล...</span>
+                    </div>
+                </div>
+                <div class="mt-6 pt-4 border-t border-slate-800/80">
+                    <p class="text-slate-400 text-xs md:text-sm flex items-start gap-2 leading-relaxed">
+                        <span class="text-amber-400 text-base">💡</span> 
+                        <span id="ai-advice">ระบบพร้อมประมวลผลโครงข่ายประสาทเทียมระดับขอบทันทีเมื่อได้รับก้อนข้อความ JSON จากเครือข่าย</span>
+                    </p>
+                </div>
+            </div>
+
+            <div id="status-color-box" class="rounded-2xl p-6 flex flex-col justify-center items-center bg-slate-900 border border-slate-800 text-slate-500 transition-all duration-500 shadow-2xl">
+                <span id="status-emoji" class="text-6xl mb-2 filter drop-shadow-md">📡</span>
+                <span id="status-label" class="text-lg font-black font-cyber uppercase tracking-widest">No Data Node</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="glass-card rounded-2xl p-6 flex flex-col items-center shadow-xl">
+                <span class="text-xs font-bold tracking-widest text-cyan-400 font-cyber uppercase mb-3">SHT30 I2C TELEMETRY</span>
+                <p class="text-slate-200 text-sm font-semibold mb-4">เกจวัดอุณหภูมิความละเอียดสูง (Temperature)</p>
+                <div class="gauge-container">
+                    <canvas id="tempGauge"></canvas>
+                    <div class="gauge-value text-2xl font-cyber text-slate-200"><span id="txt-temp" class="font-extrabold text-3xl">0.0</span> <span class="text-lg text-slate-400">°C</span></div>
+                </div>
+            </div>
+            <div class="glass-card rounded-2xl p-6 flex flex-col items-center shadow-xl">
+                <span class="text-xs font-bold tracking-widest text-cyan-400 font-cyber uppercase mb-3">SHT30 I2C TELEMETRY</span>
+                <p class="text-slate-200 text-sm font-semibold mb-4">เกจวัดความชื้นสัมพัทธ์ในอากาศ (Humidity)</p>
+                <div class="gauge-container">
+                    <canvas id="humGauge"></canvas>
+                    <div class="gauge-value text-2xl font-cyber text-slate-200"><span id="txt-hum" class="font-extrabold text-3xl">0</span> <span class="text-lg text-slate-400">%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="glass-card rounded-xl p-5 shadow-md flex flex-col justify-between relative overflow-hidden">
+                <div class="w-1.5 h-full bg-blue-500 absolute left-0 top-0"></div>
+                <p class="text-slate-500 text-[10px] font-bold font-cyber uppercase tracking-wider">Gas CO (MQ-2)</p>
+                <p class="text-2xl font-black text-slate-100 font-cyber mt-2"><span id="val-co">0.00</span> <span class="text-xs font-normal text-slate-500">ppm</span></p>
+            </div>
+            <div class="glass-card rounded-xl p-5 shadow-md flex flex-col justify-between relative overflow-hidden">
+                <div class="w-1.5 h-full bg-amber-500 absolute left-0 top-0"></div>
+                <p class="text-slate-500 text-[10px] font-bold font-cyber uppercase tracking-wider">Gas NO2 (Cloud API)</p>
+                <p class="text-2xl font-black text-slate-100 font-cyber mt-2"><span id="val-no2">0.00</span> <span class="text-xs font-normal text-slate-500">ug/m³</span></p>
+            </div>
+            <div class="glass-card rounded-xl p-5 shadow-md flex flex-col justify-between relative overflow-hidden">
+                <div class="w-1.5 h-full bg-emerald-500 absolute left-0 top-0"></div>
+                <p class="text-slate-500 text-[10px] font-bold font-cyber uppercase tracking-wider">Gas SO2 (Cloud API)</p>
+                <p class="text-2xl font-black text-slate-100 font-cyber mt-2"><span id="val-so2">0.00</span> <span class="text-xs font-normal text-slate-500">ug/m³</span></p>
+            </div>
+            <div class="glass-card rounded-xl p-5 shadow-md flex flex-col justify-between relative overflow-hidden">
+                <div class="w-1.5 h-full bg-red-500 absolute left-0 top-0"></div>
+                <p class="text-slate-500 text-[10px] font-bold font-cyber uppercase tracking-wider">Dust PM2.5 Laser</p>
+                <p class="text-2xl font-black text-slate-100 font-cyber mt-2"><span id="val-pm25">0.0</span> <span class="text-xs font-normal text-slate-500">µg/m³</span></p>
+            </div>
+            <div class="glass-card rounded-xl p-5 shadow-md flex flex-col justify-between relative overflow-hidden col-span-2 md:col-span-1">
+                <div class="w-1.5 h-full bg-violet-500 absolute left-0 top-0"></div>
+                <p class="text-slate-500 text-[10px] font-bold font-cyber uppercase tracking-wider">Dust PM10 Laser</p>
+                <p class="text-2xl font-black text-slate-100 font-cyber mt-2"><span id="val-pm10">0.0</span> <span class="text-xs font-normal text-slate-500">µg/m³</span></p>
+            </div>
+        </div>
+
+        <div class="glass-card rounded-2xl p-6 shadow-2xl border border-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-slate-200 font-bold flex items-center gap-2">
+                    <span class="text-cyan-400">📊</span> กราฟวิเคราะห์แนวโน้มมลพิษทางอากาศเรียบลื่น (Real-time Stream)
+                </h3>
+                <span class="text-[10px] font-cyber bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">MAX 15 DATA POINTS</span>
+            </div>
+            <div class="h-80 w-full">
+                <canvas id="realtimeChart"></canvas>
+            </div>
+        </div>
+    </main>
+
+    <footer class="text-center py-8 text-slate-600 text-xs font-cyber border-t border-slate-900 bg-slate-950">
+        โรงเรียนสีชมพูศึกษา องค์การบริหารส่วนจังหวัดขอนแก่น &copy; 2026 | DEPLOYED VIA GITHUB PAGES SECURE SERVER
+    </footer>
+
+    <script>
+        // 🔧 ตัวเลือกปรับแต่งดีไซน์เกจวงกลม Doughnut Gauges ให้เรียวบางหรูหรา
+        function createGaugeConfig(initialValue, maxRange, colorTheme) {
+            return {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [initialValue, maxRange - initialValue],
+                        backgroundColor: [colorTheme, '#1E293B'], // ปรับพื้นหลังสเกลให้เข้ากับธีมมืด
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    rotation: 270,   
+                    circumference: 180, 
+                    cutout: '82%',    // ปรับให้เส้นวงกลมเรียวบางดู Luxury
+                    plugins: { tooltip: { enabled: false } },
+                    maintainAspectRatio: false,
+                    responsive: true
+                }
+            };
+        }
+
+        const tempGaugeChart = new Chart(document.getElementById('tempGauge').getContext('2d'), createGaugeConfig(0, 50, '#10B981'));
+        const humGaugeChart = new Chart(document.getElementById('humGauge').getContext('2d'), createGaugeConfig(0, 100, '#3B82F6'));
+
+        // 🔧 ปรับแต่งสีกราฟเส้นเรียลไทม์ และตารางตาสเกลมืด (Dark-Grid Charts)
+        const ctx = document.getElementById('realtimeChart').getContext('2d');
+        const maxDataPoints = 15;
+        const chartData = {
+            labels: [],
+            datasets: [
+                { label: 'CO (ppm)', data: [], borderColor: '#3B82F6', borderWidth: 3, pointRadius: 1, tension: 0.3, fill: false },
+                { label: 'NO2 (ug/m³)', data: [], borderColor: '#F59E0B', borderWidth: 2, pointRadius: 1, tension: 0.3, fill: false },
+                { label: 'SO2 (ug/m³)', data: [], borderColor: '#10B981', borderWidth: 2, pointRadius: 1, tension: 0.3, fill: false }, 
+                { label: 'PM2.5 (µg/m³)', data: [], borderColor: '#EF4444', borderWidth: 3, pointRadius: 2, tension: 0.3, fill: false },
+                { label: 'PM10 (µg/m³)', data: [], borderColor: '#8B5CF6', borderWidth: 2, pointRadius: 1, tension: 0.3, fill: false }  
+            ]
+        };
+
+        const realtimeChart = new Chart(ctx, {
+            type: 'line',
+            data: chartData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: '#94A3B8', font: { family: 'Prompt', size: 11 } } }
+                },
+                scales: {
+                    x: { 
+                        grid: { display: false },
+                        ticks: { color: '#64748B', font: { family: 'Chakra Petch' } }
+                    },
+                    y: { 
+                        beginAtZero: true,
+                        grid: { color: '#334155/30', borderDash: [5, 5] },
+                        ticks: { color: '#64748B', font: { family: 'Chakra Petch' } }
+                    }
+                }
+            }
+        });
+
+        // 🎚️ แมปปิ้งระบบสีกราฟิกเรืองแสงตามการส่งวิเคราะห์ของ Edge AI
+        const airQualityConfig = {
+            "Good": { emoji: "🟢 😊", label: "อากาศดีมาก", class: "status-good", advice: "คุณภาพอากาศดีเยี่ยม ปลอดภัยสูง เหมาะแก่การทำกิจกรรมกลางแจ้งและการเรียนรู้ภาคสนามของโรงเรียนสีชมพูศึกษาครับ" },
+            "Moderate": { emoji: "🟡 😐", label: "อากาศปานกลาง", class: "status-moderate", advice: "คุณภาพอากาศปานกลาง กลุ่มเสี่ยงหรือผู้มีโรคประจำตัวควรลดเวลาการทำกิจกรรมหนักในลานกิจกรรมชั่วคราว" },
+            "Poor": { emoji: "🔴 😷", label: "เริ่มมีผลกระทบ", class: "status-poor", advice: "ดัชนีมลพิษสะสมสูงขึ้น แนะนำให้นักเรียนและบุคลากรในพิกัดนี้สวมหน้ากากอนามัยป้องกันภัยเงียบทางอากาศ" },
+            "Hazardous": { emoji: "🟣 🚨", label: "อันตรายร้ายแรง", class: "status-hazardous", advice: "🚨 วิกฤตมลพิษขั้นรุนแรง! งดกิจกรรมกลางแจ้งเด็ดขาด ปิดประตูหน้าต่างห้องเรียน และเปิดเครื่องกรองอากาศระบบปิดทันที" }
+        };
+
+        const client = new Paho.MQTT.Client("broker.emqx.io", Number(8083), "web_dashboard_client_" + Math.random().toString(16).substr(2, 8));
+
+        client.onConnectionLost = function (responseObject) {
+            const statusNode = document.getElementById("connection-status");
+            statusNode.className = "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold font-cyber bg-red-500/10 border border-red-500/50 text-red-400";
+            statusNode.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span> 🔴 CONNECTION LOST.. RETRYING';
+            setTimeout(connectMQTT, 3000);
+        };
+
+        client.onMessageArrived = function (message) {
+            try {
+                const data = JSON.parse(message.payloadString);
+                console.log("Received Data: ", data);
+
+                const co = parseFloat(data["CO"] || data.co || 0);
+                const no2 = parseFloat(data["NO2"] || data.no2 || 12.5); // บล็อกค่า Default ของ OpenWeather API หากคลาวด์ไม่ส่งมา
+                const so2 = parseFloat(data["SO2"] || data.so2 || 3.2); 
+                const pm25 = parseFloat(data["PM25"] || data["PM2.5"] || data.pm25 || 0);
+                const pm10 = parseFloat(data["PM10"] || data.pm10 || 0); 
+                const temp = parseFloat(data["Temperature"] || data.t || 0);
+                const hum = parseFloat(data["Humidity"] || data.h || 0);
+                
+                const prediction = data["Air Quality"] || data.y_label_pred || "Good";
+
+                document.getElementById("val-co").innerText = co.toFixed(2);
+                document.getElementById("val-no2").innerText = no2.toFixed(1);
+                document.getElementById("val-so2").innerText = so2.toFixed(1); 
+                document.getElementById("val-pm25").innerText = pm25.toFixed(1);
+                document.getElementById("val-pm10").innerText = pm10.toFixed(1); 
+
+                let safeTemp = Math.min(Math.max(temp, 0), 50); 
+                document.getElementById("txt-temp").innerText = temp.toFixed(1);
+                tempGaugeChart.data.datasets[0].data = [safeTemp, 50 - safeTemp];
+                tempGaugeChart.data.datasets[0].backgroundColor[0] = temp > 35 ? '#EF4444' : '#10B981';
+                tempGaugeChart.update();
+
+                let safeHum = Math.min(Math.max(hum, 0), 100);
+                document.getElementById("txt-hum").innerText = Math.round(hum);
+                humGaugeChart.data.datasets[0].data = [safeHum, 100 - safeHum];
+                humGaugeChart.update();
+
+                if (airQualityConfig[prediction]) {
+                    const ui = airQualityConfig[prediction];
+                    document.getElementById("ai-prediction-text").innerText = prediction + " Condition";
+                    document.getElementById("ai-advice").innerText = ui.advice;
+                    
+                    const box = document.getElementById("status-color-box");
+                    box.className = `rounded-2xl p-6 flex flex-col justify-center items-center shadow-xl border border-transparent transition-all duration-500 ${ui.class}`;
+                    document.getElementById("status-emoji").innerText = ui.emoji;
+                    document.getElementById("status-label").innerText = ui.label;
+                }
+
+                const now = new Date();
+                const timeLabel = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0') + ':' + now.getSeconds().toString().padStart(2, '0');
+                
+                if (chartData.labels.length >= maxDataPoints) {
+                    chartData.labels.shift();
+                    for(let i=0; i<5; i++) chartData.datasets[i].data.shift();
+                }
+
+                chartData.labels.push(timeLabel);
+                chartData.datasets[0].data.push(co);
+                chartData.datasets[1].data.push(no2);
+                chartData.datasets[2].data.push(so2);   
+                chartData.datasets[3].data.push(pm25);
+                chartData.datasets[4].data.push(pm10);  
+                realtimeChart.update();
+
+            } catch (e) {
+                console.error("Error parsing JSON message on Dashboard: ", e);
+            }
+        };
+
+        function connectMQTT() {
+            client.connect({
+                onSuccess: function () {
+                    const statusNode = document.getElementById("connection-status");
+                    statusNode.className = "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold font-cyber bg-emerald-500/10 border border-emerald-500/50 text-emerald-400";
+                    statusNode.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> 🟢 CONNECTED ONLINE';
+                    client.subscribe("pollution/env/predicted");
+                },
+                onFailure: function (message) {
+                    console.log("Connection failed: " + message.errorMessage);
+                    setTimeout(connectMQTT, 5000);
+                },
+                useSSL: false
+            });
+        }
+
+        connectMQTT();
+    </script>
+</body>
+</html>
